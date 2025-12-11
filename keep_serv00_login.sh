@@ -7,9 +7,23 @@ purple() { echo -e "\033[35m$1\033[0m"; }
 re="\033[0m"
 
 echo ""
-purple "=== serv00 | ct8 Djkyc一键保活脚本（最终美化版）===\n"
+purple "=== serv00 | ct8 Djkyc一键保活（最终版 + TG脱敏）===\n"
 
-# Telegram 推送（支持换行与 Markdown）
+# 账号脱敏函数（自动打码）
+mask_username() {
+    local name="$1"
+    local len=${#name}
+
+    if (( len <= 3 )); then
+        echo "***"
+    elif (( len <= 5 )); then
+        echo "${name:0:2}***"
+    else
+        echo "${name:0:3}***${name:len-2:2}"
+    fi
+}
+
+# Telegram 推送（支持换行 + Markdown）
 send_tg() {
     local message="$1"
     [[ -z "$TG_TOKEN" || -z "$CHAT_ID" ]] && return
@@ -40,7 +54,7 @@ fail_list=""
 success_count=0
 fail_count=0
 
-# SSH 测试函数（带重试）
+# SSH 登录函数（带重试）
 try_login() {
     local ip="$1"
     local username="$2"
@@ -64,34 +78,39 @@ for account in $accounts; do
     password=$(echo "$account" | jq -r '.password')
     port=$(echo "$account" | jq -r '.port // 22')
 
-    echo "正在激活：$username@$ip ..."
+    masked_user=$(mask_username "$username")
+
+    echo "正在激活：$masked_user@$ip ..."
 
     # 第一次尝试
     if try_login "$ip" "$username" "$password" "$port"; then
-        success_list+="🟢 $username@$ip"$'\n'
+        success_list+="🟢 $masked_user@$ip"$'\n'
         ((success_count++))
-        send_tg $'🟢 *serv00/ct8 激活成功*\n账号：`'"$username@$ip"'`'
+
+        send_tg $'🟢 *激活成功*\n账号：`'"$masked_user@$ip"'`'
     else
         echo "第一次失败，准备重试..."
-        sleep 3
-        
-        # 第二次尝试
+        sleep 2
+
+        # 第二次重试
         if try_login "$ip" "$username" "$password" "$port"; then
-            success_list+="🟢 $username@$ip"$'\n'
+            success_list+="🟢 $masked_user@$ip"$'\n'
             ((success_count++))
-            send_tg $'🟢 *serv00/ct8 激活成功（重试成功）*\n账号：`'"$username@$ip"'`'
+
+            send_tg $'🟢 *激活成功（重试成功）*\n账号：`'"$masked_user@$ip"'`'
         else
-            fail_list+="🔴 $username@$ip"$'\n'
+            fail_list+="🔴 $masked_user@$ip"$'\n'
             ((fail_count++))
-            send_tg $'🔴 *serv00/ct8 激活失败*\n账号：`'"$username@$ip"'`'
+
+            send_tg $'🔴 *激活失败*\n账号：`'"$masked_user@$ip"'`'
         fi
     fi
 
     echo "----------------------------"
 done
 
-# 最终总结
-summary=$'📊 *serv00/ct8 批量激活结果*\n'
+# 最终总结消息
+summary=$'📊 *serv00 / ct8 批量激活结果*\n'
 summary+=$'-------------------------\n'
 summary+=$'*成功：* '"$success_count"$'\n'
 summary+=$'*失败：* '"$fail_count"$'\n\n'
@@ -102,8 +121,6 @@ summary+="${success_list:-无}"$'\n'
 summary+=$'*失败列表：*\n'
 summary+="${fail_list:-无}"$'\n'
 
-# 发送总结
 send_tg "$summary"
 
-# 控制台输出总结
 echo -e "$summary"
