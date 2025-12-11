@@ -1,5 +1,5 @@
 SSH_ACCOUNTS JSON 中已经写了：
-
+```
 [
   {
     "ip": "s13.serv00.com",
@@ -13,12 +13,14 @@ SSH_ACCOUNTS JSON 中已经写了：
   }
 ]
 
+```
 SSH_ACCOUNTS	上面这个 JSON
-
-TG_TOKEN	你的 Telegram Bot Token
-
-CHAT_ID	你的聊天 ID
-
+```
+TG_TOKEN:	(你的 Telegram Bot Token)
+```
+```
+CHAT_ID:	(你的聊天 ID)
+```
 
 🌟 完整 TG 效果示例（最终版实际输出）
 
