@@ -7,17 +7,16 @@ purple() { echo -e "\033[35m$1\033[0m"; }
 re="\033[0m"
 
 echo ""
-purple "=== serv00 | AM科技 一键保活脚本（增强 TG 版）===\n"
+purple "=== serv00 | ct8 Djkyc一键保活脚本（最终美化版）===\n"
 
-# Telegram 发送函数（支持 Markdown）
+# Telegram 推送（支持换行与 Markdown）
 send_tg() {
     local message="$1"
     [[ -z "$TG_TOKEN" || -z "$CHAT_ID" ]] && return
-
     curl -s -X POST "https://api.telegram.org/bot$TG_TOKEN/sendMessage" \
         -d "chat_id=$CHAT_ID" \
         -d "parse_mode=Markdown" \
-        -d "text=$message" >/dev/null
+        --data-urlencode "text=$message" >/dev/null
 }
 
 # 参数检查
@@ -32,18 +31,24 @@ CHAT_ID="$3"
 
 accounts=$(jq -c '.[]' "$accounts_file")
 total_accounts=$(echo "$accounts" | wc -l)
-success_list=""
-fail_list=""
 
 echo "::info::共检测到 $total_accounts 个账户"
+echo "----------------------------"
 
-# SSH 尝试函数（带1次重试）
+success_list=""
+fail_list=""
+success_count=0
+fail_count=0
+
+# SSH 测试函数（带重试）
 try_login() {
     local ip="$1"
     local username="$2"
     local password="$3"
+    local port="${4:-22}"
 
     sshpass -p "$password" ssh \
+        -p "$port" \
         -o StrictHostKeyChecking=no \
         -o UserKnownHostsFile=/dev/null \
         -o ConnectTimeout=20 \
@@ -52,43 +57,53 @@ try_login() {
         -tt "$username@$ip" "echo ok; sleep 1; exit" >/dev/null 2>&1
 }
 
+# 遍历所有账户
 for account in $accounts; do
     ip=$(echo "$account" | jq -r '.ip')
     username=$(echo "$account" | jq -r '.username')
     password=$(echo "$account" | jq -r '.password')
+    port=$(echo "$account" | jq -r '.port // 22')
 
-    [[ -z "$ip" || -z "$username" ]] && continue
-
-    echo "正在激活：$username@$ip"
+    echo "正在激活：$username@$ip ..."
 
     # 第一次尝试
-    if try_login "$ip" "$username" "$password"; then
-        success_list+="🟢 $username@$ip\n"
-        send_tg "🟢 *serv00 激活成功*\n账号：\`$username@$ip\`"
+    if try_login "$ip" "$username" "$password" "$port"; then
+        success_list+="🟢 $username@$ip"$'\n'
+        ((success_count++))
+        send_tg $'🟢 *serv00/ct8 激活成功*\n账号：`'"$username@$ip"'`'
     else
         echo "第一次失败，准备重试..."
-
         sleep 3
-
-        # 第二次重试
-        if try_login "$ip" "$username" "$password"; then
-            success_list+="🟢 $username@$ip\n"
-            send_tg "🟢 *serv00 激活成功（重试成功）*\n账号：\`$username@$ip\`"
+        
+        # 第二次尝试
+        if try_login "$ip" "$username" "$password" "$port"; then
+            success_list+="🟢 $username@$ip"$'\n'
+            ((success_count++))
+            send_tg $'🟢 *serv00/ct8 激活成功（重试成功）*\n账号：`'"$username@$ip"'`'
         else
-            fail_list+="🔴 $username@$ip\n"
-            send_tg "🔴 *serv00 激活失败*\n账号：\`$username@$ip\`\n重试：失败"
+            fail_list+="🔴 $username@$ip"$'\n'
+            ((fail_count++))
+            send_tg $'🔴 *serv00/ct8 激活失败*\n账号：`'"$username@$ip"'`'
         fi
     fi
+
+    echo "----------------------------"
 done
 
 # 最终总结
-summary="📊 *serv00 批量激活完成*\n
-*成功：* $(echo -e "$success_list" | wc -l)
-*失败：* $(echo -e "$fail_list" | wc -l)\n
-———\n"
+summary=$'📊 *serv00/ct8 批量激活结果*\n'
+summary+=$'-------------------------\n'
+summary+=$'*成功：* '"$success_count"$'\n'
+summary+=$'*失败：* '"$fail_count"$'\n\n'
 
-summary+="*成功列表：*\n${success_list:-无}\n"
-summary+="*失败列表：*\n${fail_list:-无}\n"
+summary+=$'*成功列表：*\n'
+summary+="${success_list:-无}"$'\n'
 
+summary+=$'*失败列表：*\n'
+summary+="${fail_list:-无}"$'\n'
+
+# 发送总结
 send_tg "$summary"
+
+# 控制台输出总结
 echo -e "$summary"
